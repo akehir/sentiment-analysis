@@ -131,7 +131,7 @@ function checkAnalyzingCollection() {
 
 							results[entry.phrase] = sentiment;
 
-							var resultCollection = myDb.collection(dbAnalyzingCollection);
+							var resultCollection = myDb.collection(dbResultsCollection);
 							resultCollection.remove({phrase: sentiment.phrase});
 							resultCollection.insert(sentiment);
 
