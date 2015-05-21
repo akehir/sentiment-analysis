@@ -16,6 +16,14 @@ app.configure(function() {
 });
 
 
+
+var results = {};
+var averageUpperBound =  1.3;
+var averageLowerBound = -1.3;
+var scoreUpperBound   =  1.0;
+var scoreLowerBound   =  0.0;
+
+
 // Database Connection
 var mongo = {};
 var dbResultsCollection		= "results";
@@ -40,6 +48,12 @@ var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
   if(!err) {
     console.log("Connection to mongoDB established");
     myDb = db;
+
+    getInitialResults();
+    setInterval(function(){
+    		checkAnalyzingCollection();
+		},  1000);
+
   } else {
   	console.log("Failed to connect to database!");
   }
@@ -55,37 +69,32 @@ app.get('/xyz', function (req, res) {
 	
 });
 
-var results = {};
-var averageUpperBound =  1.3;
-var averageLowerBound = -1.3;
-var scoreUpperBound   =  1.0;
-var scoreLowerBound   =  0.0;
 
 
-var resultCollection = myDb.collection(dbResultsCollection);
-resultCollection.find().toArray(function(err, docs) {
-	if (docs.length > 0) {
-		for (var i = 0; i < docs.length; i++) {
-			var entry = docs[i];
-			results[phrase] = 
-				{
-					phrase: entry.phrase,
-					tweets: entry.tweets,
-					totalsentiment: entry.totalsentiment,
-					score: entry.score,
-					history: entry.history
-				};
+function getInitialResults() {
+	var resultCollection = myDb.collection(dbResultsCollection);
+	resultCollection.find().toArray(function(err, docs) {
+		if (docs.length > 0) {
+			for (var i = 0; i < docs.length; i++) {
+				var entry = docs[i];
+				results[phrase] = 
+					{
+						phrase: entry.phrase,
+						tweets: entry.tweets,
+						totalsentiment: entry.totalsentiment,
+						score: entry.score,
+						history: entry.history
+					};
+			}
+		} else {
+			console.log("No results in database!");
 		}
-	} else {
-		console.log("No results in database!");
-	}
-});
+	});
 
-console.log(results);
+	console.log(results);
+}
 
-//Analysis
-setInterval(function(){
-
+function checkAnalyzingCollection() {
 	// Check MongoDB Analyzing Collection
 	var collection = myDb.collection(dbAnalyzingCollection);
 	collection.find().toArray(function(err, docs) {
@@ -120,8 +129,7 @@ setInterval(function(){
 	    	console.log("No new tweets in database!");
 	    }
 	  });
-
-},  1000);
+}
 
 
 app.listen(port);
