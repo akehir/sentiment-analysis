@@ -55,6 +55,33 @@ app.get('/xyz', function (req, res) {
 	
 });
 
+var results = {};
+var averageUpperBound =  1.3;
+var averageLowerBound = -1.3;
+var scoreUpperBound   =  1.0;
+var scoreLowerBound   =  0.0;
+
+
+var resultCollection = myDb.collection(dbResultsCollection);
+resultCollection.find().toArray(function(err, docs) {
+	if (docs.length > 0) {
+		for (var i = 0; i < docs.length; i++) {
+			var entry = docs[i];
+			results[phrase] = 
+				{
+					phrase: entry.phrase,
+					tweets: entry.tweets,
+					totalsentiment: entry.totalsentiment,
+					score: entry.score,
+					history: entry.history
+				};
+		}
+	} else {
+		console.log("No results in database!");
+	}
+});
+
+console.log(results);
 
 //Analysis
 setInterval(function(){
@@ -66,12 +93,29 @@ setInterval(function(){
 			for (var i = 0; i < docs.length; i++) {
 				sentiment(docs.text, function (err, result) {
 							console.log("Tweet: " + docs.text + " --- Result: " + result.score);
-
 							collection.remove({_id: docs._id});
+
+							var sentiment = results[docs.phrase];
+							sentiment.totalsentiment += result.score;
+							sentiment.tweets++;
+			 
+							// Calculate average
+							var average = sentiment.totalsentiment / sentiment.tweets;
+
+							// Limit average to bounds
+							if (average > averageUpperBound) average = averageUpperBound;
+							if (average < averageLowerBound) average = averageLowerBound;
+							
+							// Map average to score between 0 and 1
+							sentiment.score = ((average - averageLowerBound) / (averageUpperBound - averageLowerBound)) * (scoreUpperBound - scoreLowerBound) + scoreLowerBound;
+
+							results[docs.phrase] = sentiment;
 							// tweetCount++;
 							// tweetTotalSentiment += result.score;
 						});
 			}
+
+			console.log(results);
 	    } else {
 	    	console.log("No new tweets in database!");
 	    }
