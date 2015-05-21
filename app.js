@@ -129,7 +129,12 @@ function checkAnalyzingCollection() {
 							// Map average to score between 0 and 1
 							sentiment.score = ((average - averageLowerBound) / (averageUpperBound - averageLowerBound)) * (scoreUpperBound - scoreLowerBound) + scoreLowerBound;
 
-							results[docs.phrase] = sentiment;
+							results[entry.phrase] = sentiment;
+
+							var resultCollection = myDb.collection(dbAnalyzingCollection);
+							resultCollection.remove({phrase: sentiment.phrase});
+							resultCollection.insert(sentiment);
+
 							// tweetCount++;
 							// tweetTotalSentiment += result.score;
 						});
