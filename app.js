@@ -100,14 +100,15 @@ function checkAnalyzingCollection() {
 	collection.find().toArray(function(err, docs) {
 		if (docs.length > 0) {
 			for (var i = 0; i < docs.length; i++) {
-				sentiment(docs.text, function (err, result) {
-							console.log("Tweet: " + docs.text + " --- Result: " + result.score);
-							collection.remove({_id: docs._id});
+				var entry = docs[i];
+				sentiment(entry.text, function (err, result) {
+							console.log("Tweet: " + entry.text + " --- Result: " + result.score);
+							collection.remove({_id: entry._id});
 
-							var sentiment = results[docs.phrase];
+							var sentiment = results[entry.phrase];
 							if (sentiment == undefined) {
 								sentiment = {
-									phrase: docs.phrase,
+									phrase: entry.phrase,
 									tweets: 0,
 									totalsentiment: 0,
 									score: 0,
