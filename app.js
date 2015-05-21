@@ -105,6 +105,16 @@ function checkAnalyzingCollection() {
 							collection.remove({_id: docs._id});
 
 							var sentiment = results[docs.phrase];
+							if (sentiment == undefined) {
+								sentiment = {
+									phrase: docs.phrase,
+									tweets: 0,
+									totalsentiment: 0,
+									score: 0,
+									history: []
+								};
+							}
+
 							sentiment.totalsentiment += result.score;
 							sentiment.tweets++;
 			 
