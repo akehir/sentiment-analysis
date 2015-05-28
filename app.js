@@ -36,10 +36,11 @@ if (process.env.VCAP_SERVICES) {
 
     if (env['mongodb-2.4']) {
         mongo['url'] = env['mongodb-2.4'][0]['credentials']['url'];
-    }
+    } 
 
     console.log("Mongo URL:" + mongo.url);
 } else {
+	mongo['url'] = "mongodb://localhost:27017/ase";
    console.log("No VCAP Services!");
 }
 
@@ -62,8 +63,9 @@ function checkAnalyzingCollection() {
 	var analyzingCollection = myDb.collection(dbAnalyzingCollection);
 	var resultsCollection = myDb.collection(dbResultsCollection);
     setTimeout(function () {    //  call a 3s setTimeout when the loop is called
-    	analyzingCollection.findAndModify({remove: true}).toArray(function(err, docs) {
+    	analyzingCollection.find().toArray(function(err, docs) {
     		if (docs.length > 0) {
+    			analyzingCollection.remove();
     			console.log("Batch Size: " + docs.length);
     			for (var i = 0; i < docs.length; i++) {
     				var entry = docs[i];
@@ -72,7 +74,7 @@ function checkAnalyzingCollection() {
     						phrase: entry.phrase,
     						text: entry.text,
     						date: entry.date,
-    						sentiment: result.score
+    						sentiment: results.score
     					};
     					console.log("Result: " + result);
     					resultsCollection.insert(result);
@@ -84,7 +86,7 @@ function checkAnalyzingCollection() {
     	});
 
 
-        checkAnalyzingCollection2();
+        checkAnalyzingCollection();
    	}, 1000)
 }
 
