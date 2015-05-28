@@ -4,8 +4,9 @@
   "version": "0.9.1",
   "dependencies": {
     "express": "3.x",
-    "sentiment": "0.2.1",
-    "mongodb": "*" 
+    "mongodb": "*",
+    "mqlight": "^1.0.2015031902",
+    "sentiment": "0.2.1"
   },
   "devDependencies": {
     "grunt": "~0.4.2",
@@ -18,5 +19,3 @@
     "start": "node app.js"
   }
 }
-
-
