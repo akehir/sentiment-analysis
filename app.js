@@ -30,6 +30,7 @@ var dbResultsCollection		= "results";
 var dbAnalyzingCollection	= "analyzing";
 var dbKeywordsCollection	= "keywords";
 
+
 if (process.env.VCAP_SERVICES) {
     var env = JSON.parse(process.env.VCAP_SERVICES);
 
@@ -49,10 +50,7 @@ var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
     console.log("Connection to mongoDB established");
     myDb = db;
 
-    getInitialResults();
-    setInterval(function(){
-    		checkAnalyzingCollection();
-		},  1000);
+    checkAnalyzingCollection();
 
   } else {
   	console.log("Failed to connect to database!");
@@ -60,93 +58,35 @@ var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
 });
 
 
-//REST
-app.get('/xyz', function (req, res) {
-	/*
-		xyz
-	*/
-
-	
-});
-
-
-
-function getInitialResults() {
-	var resultCollection = myDb.collection(dbResultsCollection);
-	resultCollection.find().toArray(function(err, docs) {
-		if (docs.length > 0) {
-			for (var i = 0; i < docs.length; i++) {
-				var entry = docs[i];
-				results[phrase] = 
-					{
-						phrase: entry.phrase,
-						tweets: entry.tweets,
-						totalsentiment: entry.totalsentiment,
-						score: entry.score,
-						history: entry.history
-					};
-			}
-		} else {
-			console.log("No results in database!");
-		}
-	});
-
-	console.log(results);
-}
-
 function checkAnalyzingCollection() {
-	// Check MongoDB Analyzing Collection
-	var collection = myDb.collection(dbAnalyzingCollection);
-	collection.find().toArray(function(err, docs) {
-		if (docs.length > 0) {
-			for (var i = 0; i < docs.length; i++) {
-				var entry = docs[i];
-				sentiment(entry.text, function (err, result) {
-							console.log("Tweet: " + entry.text + " --- Result: " + result.score);
-							collection.remove({_id: entry._id});
+	var analyzingCollection = myDb.collection(dbAnalyzingCollection);
+	var resultsCollection = myDb.collection(dbResultsCollection);
+    setTimeout(function () {    //  call a 3s setTimeout when the loop is called
+    	analyzingCollection.findAndModify({remove: true}).toArray(function(err, docs) {
+    		if (docs.length > 0) {
+    			console.log("Batch Size: " + docs.length);
+    			for (var i = 0; i < docs.length; i++) {
+    				var entry = docs[i];
+    				sentiment(entry.text, function (err, results) {
+    					var result = {
+    						phrase: entry.phrase,
+    						text: entry.text,
+    						date: entry.date,
+    						sentiment: result.score
+    					};
+    					console.log("Result: " + result);
+    					resultsCollection.insert(result);
+    				});
+    			}
+    		} else {
+    			console.log("No new tweets in database!");
+    		}
+    	});
 
-							var sentiment = results[entry.phrase];
-							if (sentiment == undefined) {
-								sentiment = {
-									phrase: entry.phrase,
-									tweets: 0,
-									totalsentiment: 0,
-									score: 0,
-									history: []
-								};
-							}
 
-							sentiment.totalsentiment += result.score;
-							sentiment.tweets++;
-			 
-							// Calculate average
-							var average = sentiment.totalsentiment / sentiment.tweets;
-
-							// Limit average to bounds
-							if (average > averageUpperBound) average = averageUpperBound;
-							if (average < averageLowerBound) average = averageLowerBound;
-							
-							// Map average to score between 0 and 1
-							sentiment.score = ((average - averageLowerBound) / (averageUpperBound - averageLowerBound)) * (scoreUpperBound - scoreLowerBound) + scoreLowerBound;
-
-							results[entry.phrase] = sentiment;
-
-							var resultCollection = myDb.collection(dbResultsCollection);
-							resultCollection.remove({phrase: sentiment.phrase});
-							resultCollection.insert(sentiment);
-
-							// tweetCount++;
-							// tweetTotalSentiment += result.score;
-						});
-			}
-
-			console.log(results);
-	    } else {
-	    	console.log("No new tweets in database!");
-	    }
-	  });
+        checkAnalyzingCollection2();
+   	}, 1000)
 }
-
 
 app.listen(port);
 console.log("Server listening on port " + port);
