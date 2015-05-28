@@ -76,7 +76,6 @@ function checkAnalyzingCollection() {
     						date: entry.date,
     						sentiment: results.score
     					};
-    					console.log("Result: " + result);
     					resultsCollection.insert(result);
     				});
     			}
