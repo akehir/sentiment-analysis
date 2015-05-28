@@ -1,8 +1,8 @@
 var port = (process.env.VCAP_APP_PORT || 3000);
 var express = require("express");
-var sentiment = require('sentiment');
 var mongoClient = require("mongodb").MongoClient;
 var mqlight = require('mqlight');
+var sentiment = require('sentiment');
 
 
 // Settings
@@ -72,7 +72,6 @@ var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
     
    if(!err) {
     console.log("Connection to mongoDB established");
-    debugLog+="Connection to mongoDB established";
     myDb = db;
 
 	var keywordsCollection = myDb.collection(dbKeywordsCollection);
