@@ -11,4 +11,5 @@ applications:
    - mongodb-sentiment
    - Auto-Scaling-z4
    - Monitoring and Analytics-t1
+   - sentiment-mq
 
