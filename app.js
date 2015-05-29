@@ -4,11 +4,19 @@ var mongoClient = require("mongodb").MongoClient;
 var mqlight = require('mqlight');
 var sentiment = require('sentiment');
 
+var os = require("os-utils");
+var usage = require("usage"),
+
+var vcapApplication = JSON.parse(process.env.VCAP_APPLICATION);
+var applicationId = vcapApplication.application_name;
+
 
 // Settings
 var dbKeywordsCollection	= "keywords";
 var dbResultsCollection		= "results";
 var dbCacheCollection		= "cache";
+var dbServerUsageCollection = "serverusage";
+
 
 var mqlightTweetsTopic = "mqlight/ase/tweets";
 var mqlightAnalyzedTopic = "mqlight/ase/analyzed";
@@ -18,6 +26,14 @@ var mqlightShareID = "ase-analyzer";
 var mqlightServiceName = "mqlight";
 var mqlightSubInitialised = false;
 var mqlightClient = null;
+
+// Set constant variables
+var ZERO = 0,
+    ONE_TENTH = .1,
+    ONE = 1,
+    ONE_HUNDRED = 100,
+    FIVE_THOUSAND = 5000,
+    ONE_MILLION = 1E6;
 
 
 /*
@@ -100,6 +116,7 @@ function startApp() {
 	 */
 	 
 	runGC();
+	runUsageMonitoring();
 	 
 	mqlightClient = mqlight.createClient(opts, function(err) {
 	    if (err) {
@@ -172,10 +189,76 @@ function processMessage(data, delivery) {
 	  }
 }
 
+//Creates the usage monitoring item for the first time in the DB
+// later it will be updated only
+// function startUsageMonitoring(){
+// 	var usageCollection = myDb.collection(dbServerUsageCollection);
+	
+// 	os.cpuUsage(function(v){
+// 		var usage = {
+// 			appName: "analyzing",
+// 			appId: applicationId,
+// 			memUsed:	(os.totalmem() - os.freemem()),
+// 			memTotal:	os.totalmem(),
+// 			cpuLoad:	v
+// 		}
+		
+// 		usageCollection.insert(usage);
+// 	});
+// }
+
+function updateUsageInfo(){
+	/*
+		Gets current CPU/memory etc. usage and update corresponding entry in DB.
+		Is called repeatedly.
+	*/
+	
+	var usageCollection = myDb.collection(dbServerUsageCollection);
+	
+	os.cpuUsage(function(v){
+		var query = {appName: "analyzing",
+			appId: applicationId}
+		var newValues = {
+			$set: {
+			memUsed:	(os.totalmem() - os.freemem()),
+			memTotal:	os.totalmem(),
+			cpuLoad:	v}
+		}
+		usageCollection.update(query, newValues, {upsert: true});
+		// usageCollection.update(query, newValues);
+	});
+}
+
+// Gets the CPU usage and emits an event with the utilization percentage
+function getUsage()
+{
+    var pid = process.pid;
+    var options = { keepHistory: true };
+
+    // Looks up CPU usage data and compares it against last retrieved value
+    usage.lookup(pid, options, function(err, result) {
+        var newAvgCpuUsage = Math.round(result.cpu);
+        // If average CPU usage has changed, emit a cpuChange event
+        if (newAvgCpuUsage > ONE_HUNDRED)
+            newAvgCpuUsage = ONE_HUNDRED;
+        else if (newAvgCpuUsage < ONE)
+            newAvgCpuUsage = ONE;
+
+        // sio.emit("cpuUsage", { newCpuAvg: newAvgCpuUsage });
+        console.log("emitted CPU usage event for pid :" + pid + " ~ ", newAvgCpuUsage.toString() + "%");
+    });
+}
+
+function runUsageMonitoring() {
+ setInterval(function () {    //  call a 30s setTimeout when the loop is called
+		updateUsageInfo();
+		getUsage();
+		console.log("Completed Usage Monetoring.");
+	}, 1000)
+}
 
 function runGC() {
  setInterval(function () {    //  call a 30s setTimeout when the loop is called
-		console.log("Running GC.");
 		global.gc();
 		console.log("Completed GC.");
 	}, 30000)
