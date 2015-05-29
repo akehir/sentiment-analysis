@@ -95,6 +95,9 @@ function startApp() {
 	 * Create our MQ Light client
 	 * If we are not running in Bluemix, then default to a local MQ Light connection  
 	 */
+	 
+	runGC();
+	 
 	mqlightClient = mqlight.createClient(opts, function(err) {
 	    if (err) {
 	      console.error('Connection to ' + opts.service + ' using client-id ' + mqlightClient.id + ' failed: ' + err);
@@ -154,11 +157,13 @@ function processMessage(data, delivery) {
 
 
 
- function runGC() {
-     setTimeout(function () {    //  call a 30s setTimeout when the loop is called
-			global.gc();
-    	}, 30000)
- }
+function runGC() {
+ setTimeout(function () {    //  call a 30s setTimeout when the loop is called
+		console.log("Running GC.");
+		global.gc();
+		console.log("Completed GC.");
+	}, 30000)
+}
 
 // function checkAnalyzingCollection() {
 //     setTimeout(function () {    //  call a 3s setTimeout when the loop is called
