@@ -10,7 +10,7 @@ var dbKeywordsCollection	= "keywords";
 var dbResultsCollection		= "results";
 var dbAnalyzingCollection	= "analyzing";
 
-var mqLightSubscribeTopic = "mqlight/ase/tweets";
+var mqLightTweetsTopic = "mqlight/ase/tweets";
 var mqLightShareID = "ase-analyzer";
 var mqlightServiceName = "mqlight";
 var mqlightSubInitialised = false;
@@ -106,7 +106,7 @@ function startApp() {
 	     * Create our subscription
 	     */
 	    mqlightClient.on('message', processMessage);
-	    mqlightClient.subscribe(mqLightSubscribeTopic, mqLightShareID, 
+	    mqlightClient.subscribe(mqLightTweetsTopic, mqLightShareID, 
 	        {credit : 5,
 	           autoConfirm : true,
 	           qos : 0}, function(err) {
