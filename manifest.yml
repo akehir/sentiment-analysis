@@ -3,7 +3,7 @@ applications:
 - name: SentimentAnalysis-Analysis
   memory: 128M
   instances: 1
-  command: node app.js
+  command: node --expose-gc app.js
   host: sentimentanalysis-analysis-akehir
   domain: eu-gb.mybluemix.net
   path: .

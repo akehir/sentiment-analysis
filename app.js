@@ -153,6 +153,13 @@ function processMessage(data, delivery) {
 }
 
 
+
+ function runGC() {
+     setTimeout(function () {    //  call a 30s setTimeout when the loop is called
+			global.gc();
+    	}, 30000)
+ }
+
 // function checkAnalyzingCollection() {
 //     setTimeout(function () {    //  call a 3s setTimeout when the loop is called
 //     	analyzingCollection.find().toArray(function(err, docs) {
