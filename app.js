@@ -8,13 +8,16 @@ var sentiment = require('sentiment');
 // Settings
 var dbKeywordsCollection	= "keywords";
 var dbResultsCollection		= "results";
-var dbAnalyzingCollection	= "analyzing";
+var dbCacheCollection		= "cache";
 
-var mqLightTweetsTopic = "mqlight/ase/tweets";
-var mqLightShareID = "ase-analyzer";
+var mqlightTweetsTopic = "mqlight/ase/tweets";
+var mqlightAnalyzedTopic = "mqlight/ase/analyzed";
+var mqlightAggregateTopic = "mqlight/ase/aggregate";
+
+var mqlightShareID = "ase-analyzer";
 var mqlightServiceName = "mqlight";
 var mqlightSubInitialised = false;
-var mqLightClient = null;
+var mqlightClient = null;
 
 
 /*
@@ -54,7 +57,7 @@ app.configure(function() {
 // Database Connection
 var mongo = {};
 var keywordsCollection = null;
-var analyzingCollection = null;
+var cacheCollection = null;
 var resultsCollection = null;
 
 if (process.env.VCAP_SERVICES) {
@@ -78,8 +81,8 @@ var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
     myDb = db;
 
 	keywordsCollection = myDb.collection(dbKeywordsCollection);
-    analyzingCollection = myDb.collection(dbAnalyzingCollection);
 	resultsCollection = myDb.collection(dbResultsCollection);
+	cacheCollection = myDb.collection(dbCacheCollection);
 
 	// Start the App after DB Connection
 	startApp();
@@ -109,7 +112,7 @@ function startApp() {
 	     * Create our subscription
 	     */
 	    mqlightClient.on('message', processMessage);
-	    mqlightClient.subscribe(mqLightTweetsTopic, mqLightShareID, 
+	    mqlightClient.subscribe(mqlightTweetsTopic, mqlightShareID, 
 	        {credit : 5,
 	           autoConfirm : true,
 	           qos : 0}, function(err) {
@@ -150,11 +153,24 @@ function processMessage(data, delivery) {
 				sentiment: results.score
 			};
 			resultsCollection.insert(result);
+
+			var analyzed = {
+				phrase: tweet.phrase,
+				date: tweet.date
+			};
+
+			var msgData = {
+		      "analyzed" : analyzed,
+		      "frontend" : "Node.js: " + mqlightClient.id
+		    };
+		    console.log("Sending message: " + JSON.stringify(msgData));
+		    mqlightClient.send(mqlightAnalyzedTopic, msgData, {
+			    ttl: 60*60*1000 /* 1 hour */
+			    });
 		});
 
 	  }
 }
-
 
 
 function runGC() {
@@ -164,34 +180,6 @@ function runGC() {
 		console.log("Completed GC.");
 	}, 30000)
 }
-
-// function checkAnalyzingCollection() {
-//     setTimeout(function () {    //  call a 3s setTimeout when the loop is called
-//     	analyzingCollection.find().toArray(function(err, docs) {
-//     		if (docs.length > 0) {
-//     			analyzingCollection.remove();
-//     			console.log("Batch Size: " + docs.length);
-//     			for (var i = 0; i < docs.length; i++) {
-//     				var entry = docs[i];
-//     				sentiment(entry.text, function (err, results) {
-//     					var result = {
-//     						phrase: entry.phrase,
-//     						text: entry.text,
-//     						date: entry.date,
-//     						sentiment: results.score
-//     					};
-//     					resultsCollection.insert(result);
-//     				});
-//     			}
-//     		} else {
-//     			console.log("No new tweets in database!");
-//     		}
-//     	});
-
-
-//         checkAnalyzingCollection();
-//    	}, 1000)
-// }
 
 app.listen(port);
 console.log("Server listening on port " + port);
