@@ -5,7 +5,7 @@ var mqlight = require('mqlight');
 var sentiment = require('sentiment');
 
 var os = require("os-utils");
-var usage = require("usage"),
+var usage = require("usage");
 
 var vcapApplication = JSON.parse(process.env.VCAP_APPLICATION);
 var applicationId = vcapApplication.application_name;
