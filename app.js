@@ -142,7 +142,7 @@ function processMessage(data, delivery) {
 	    console.error("Bad data received: " + data);
 	  }
 	  else {
-	    console.log("Received data: " + JSON.stringify(data));
+	    //console.log("Received data: " + JSON.stringify(data));
 	    // Upper case it and publish a notification
 	    
 	    sentiment(tweet.text, function (err, results) {
@@ -163,7 +163,7 @@ function processMessage(data, delivery) {
 		      "analyzed" : analyzed,
 		      "frontend" : "Node.js: " + mqlightClient.id
 		    };
-		    console.log("Sending message: " + JSON.stringify(msgData));
+		    //console.log("Sending message: " + JSON.stringify(msgData));
 		    mqlightClient.send(mqlightAnalyzedTopic, msgData, {
 			    ttl: 60*60*1000 /* 1 hour */
 			    });
@@ -174,7 +174,7 @@ function processMessage(data, delivery) {
 
 
 function runGC() {
- setTimeout(function () {    //  call a 30s setTimeout when the loop is called
+ setInterval(function () {    //  call a 30s setTimeout when the loop is called
 		console.log("Running GC.");
 		global.gc();
 		console.log("Completed GC.");
