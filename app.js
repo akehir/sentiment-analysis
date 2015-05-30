@@ -1,20 +1,38 @@
-var port = (process.env.VCAP_APP_PORT || 3000);
+
 var express = require("express");
 var mongoClient = require("mongodb").MongoClient;
 var mqlight = require('mqlight');
 var sentiment = require('sentiment');
-
-var os = require("os-utils");
+var os = require("os");
 var usage = require("usage");
+var util = require("util");
 
-var vcapApplication = JSON.parse(process.env.VCAP_APPLICATION);
-var applicationId = vcapApplication.application_name;
+// define values for finding application instance status
 
+// Variables used to detect change in values
+var prevTotalOsMem, prevFreeOsMem, prevOsMemUsed,
+    prevHeapUsed, prevTotalHeap, prevResidentSetSize;
+
+// Determines if the app is running locally and sets port, memory total, & instance index
+var port, memLimit, instance, application;
+if (process.env.VCAP_APPLICATION === undefined)
+{
+    port = 3000;
+    memLimit = 128;
+    instance = -1;
+}
+else
+{
+    port = process.env.VCAP_APP_PORT;
+    application = process.env.VCAP_APPLICATION;
+    memLimit = JSON.parse(process.env.VCAP_APPLICATION)['limits']['mem'];
+    instance = JSON.parse(process.env.VCAP_APPLICATION)['instance_index'];
+}
 
 // Settings
-var dbKeywordsCollection	= "keywords";
-var dbResultsCollection		= "results";
-var dbCacheCollection		= "cache";
+var dbKeywordsCollection = "keywords";
+var dbResultsCollection = "results";
+var dbCacheCollection = "cache";
 var dbServerUsageCollection = "serverusage";
 
 
@@ -41,33 +59,33 @@ var ZERO = 0,
  */
 var opts = {};
 var mqlightService = {};
+
 if (process.env.VCAP_SERVICES) {
-  var services = JSON.parse(process.env.VCAP_SERVICES);
-  console.log( 'Running BlueMix');
-  if (services[ mqlightServiceName ] == null) {
-    throw 'Error - Check that app is bound to service';
-  }
-  mqlightService = services[mqlightServiceName][0];
-  opts.service = mqlightService.credentials.connectionLookupURI;
-  opts.user = mqlightService.credentials.username;
-  opts.password = mqlightService.credentials.password;
+    var services = JSON.parse(process.env.VCAP_SERVICES);
+    console.log('Running BlueMix');
+    if (services[mqlightServiceName] == null) {
+        throw 'Error - Check that app is bound to service';
+    }
+    mqlightService = services[mqlightServiceName][0];
+    opts.service = mqlightService.credentials.connectionLookupURI;
+    opts.user = mqlightService.credentials.username;
+    opts.password = mqlightService.credentials.password;
 } else {
-  opts.service = 'amqp://localhost:5672';
+    opts.service = 'amqp://localhost:5672';
 }
 
 
 // defensiveness against errors parsing request bodies...
 process.on('uncaughtException', function (err) {
-	console.log('Caught exception: ' + err.stack);
+    console.log('Caught exception: ' + err.stack);
 });
 
 var app = express();
 // Configure the app web container
-app.configure(function() {
-	app.use(express.bodyParser());
-	app.use(express.static(__dirname + '/public'));
+app.configure(function () {
+    app.use(express.bodyParser());
+    app.use(express.static(__dirname + '/public'));
 });
-
 
 
 // Database Connection
@@ -85,61 +103,63 @@ if (process.env.VCAP_SERVICES) {
 
     console.log("Mongo URL:" + mongo.url);
 } else {
-   console.log("No VCAP Services!");
-   mongo['url'] = "mongodb://localhost:27017/ase";
-} 
+    console.log("No VCAP Services!");
+    mongo['url'] = "mongodb://localhost:27017/ase";
+}
 
-var myDb; 
-var mongoConnection = mongoClient.connect(mongo.url, function(err, db) {
-    
-   if(!err) {
-    console.log("Connection to mongoDB established");
-    myDb = db;
+var myDb;
+var mongoConnection = mongoClient.connect(mongo.url, function (err, db) {
 
-	keywordsCollection = myDb.collection(dbKeywordsCollection);
-	resultsCollection = myDb.collection(dbResultsCollection);
-	cacheCollection = myDb.collection(dbCacheCollection);
+    if (!err) {
+        console.log("Connection to mongoDB established");
+        myDb = db;
 
-	// Start the App after DB Connection
-	startApp();
+        keywordsCollection = myDb.collection(dbKeywordsCollection);
+        resultsCollection = myDb.collection(dbResultsCollection);
+        cacheCollection = myDb.collection(dbCacheCollection);
 
-  } else {
-  	console.log("Failed to connect to database!");
-  }
-}); 
+        // Start the App after DB Connection
+        startApp();
+
+    } else {
+        console.log("Failed to connect to database!");
+    }
+});
 
 
 function startApp() {
-	/*
-	 * Create our MQ Light client
-	 * If we are not running in Bluemix, then default to a local MQ Light connection  
-	 */
-	 
-	runGC();
-	runUsageMonitoring();
-	 
-	mqlightClient = mqlight.createClient(opts, function(err) {
-	    if (err) {
-	      console.error('Connection to ' + opts.service + ' using client-id ' + mqlightClient.id + ' failed: ' + err);
-	    }
-	    else {
-	      console.log('Connected to ' + opts.service + ' using client-id ' + mqlightClient.id);
-	    }
-	    /*
-	     * Create our subscription
-	     */
-	    mqlightClient.on('message', processMessage);
-	    mqlightClient.subscribe(mqlightTweetsTopic, mqlightShareID, 
-	        {credit : 5,
-	           autoConfirm : true,
-	           qos : 0}, function(err) {
-	             if (err) console.error("Failed to subscribe: " + err); 
-	             else {
-	               console.log("Subscribed");
-	               mqlightSubInitialised = true;
-	             }
-	           });
-	  });
+    /*
+     * Create our MQ Light client
+     * If we are not running in Bluemix, then default to a local MQ Light connection
+     */
+
+    runGC();
+    runUsageMonitoring();
+
+    mqlightClient = mqlight.createClient(opts, function (err) {
+        if (err) {
+            console.error('Connection to ' + opts.service + ' using client-id ' + mqlightClient.id + ' failed: ' + err);
+        }
+        else {
+            console.log('Connected to ' + opts.service + ' using client-id ' + mqlightClient.id);
+        }
+        /*
+         * Create our subscription
+         */
+        mqlightClient.on('message', processMessage);
+        mqlightClient.subscribe(mqlightTweetsTopic, mqlightShareID,
+            {
+                credit: 5,
+                autoConfirm: true,
+                qos: 0
+            }, function (err) {
+                if (err) console.error("Failed to subscribe: " + err);
+                else {
+                    console.log("Subscribed");
+                    mqlightSubInitialised = true;
+                }
+            });
+    });
 }
 
 
@@ -147,96 +167,99 @@ function startApp() {
  * Handle each message as it arrives
  */
 function processMessage(data, delivery) {
-	  var tweet = data.tweet;
-	  try {
-	    // Convert JSON into an Object we can work with 
-	    data = JSON.parse(data);
-	    tweet = data.tweet;
-	  } catch (e) {
-	    // Expected if we already have a Javascript object
-	  }
-	  if (!tweet) {
-	    console.error("Bad data received: " + data);
-	  }
-	  else {
-	    //console.log("Received data: " + JSON.stringify(data));
-	    // Upper case it and publish a notification
-	    
-	    sentiment(tweet.text, function (err, results) {
-			var result = {
-				phrase: tweet.phrase,
-				text: tweet.text,
-				date: tweet.date,
-				sentiment: results.score
-			};
-			resultsCollection.insert(result);
+    var tweet = data.tweet;
+    try {
+        // Convert JSON into an Object we can work with
+        data = JSON.parse(data);
+        tweet = data.tweet;
+    } catch (e) {
+        // Expected if we already have a Javascript object
+    }
+    if (!tweet) {
+        console.error("Bad data received: " + data);
+    }
+    else {
+        //console.log("Received data: " + JSON.stringify(data));
+        // Upper case it and publish a notification
 
-			var analyzed = {
-				phrase: tweet.phrase,
-				date: tweet.date
-			};
+        sentiment(tweet.text, function (err, results) {
+            var result = {
+                phrase: tweet.phrase,
+                text: tweet.text,
+                date: tweet.date,
+                sentiment: results.score
+            };
+            resultsCollection.insert(result);
 
-			var msgData = {
-		      "analyzed" : analyzed,
-		      "frontend" : "Node.js: " + mqlightClient.id
-		    };
-		    //console.log("Sending message: " + JSON.stringify(msgData));
-		    mqlightClient.send(mqlightAnalyzedTopic, msgData, {
-			    ttl: 60*60*1000 /* 1 hour */
-			    });
-		});
+            var analyzed = {
+                phrase: tweet.phrase,
+                date: tweet.date
+            };
 
-	  }
+            var msgData = {
+                "analyzed": analyzed,
+                "frontend": "Node.js: " + mqlightClient.id
+            };
+            //console.log("Sending message: " + JSON.stringify(msgData));
+            mqlightClient.send(mqlightAnalyzedTopic, msgData, {
+                ttl: 60 * 60 * 1000 /* 1 hour */
+            });
+        });
+
+    }
 }
 
-//Creates the usage monitoring item for the first time in the DB
-// later it will be updated only
-// function startUsageMonitoring(){
-// 	var usageCollection = myDb.collection(dbServerUsageCollection);
-	
-// 	os.cpuUsage(function(v){
-// 		var usage = {
-// 			appName: "analyzing",
-// 			appId: applicationId,
-// 			memUsed:	(os.totalmem() - os.freemem()),
-// 			memTotal:	os.totalmem(),
-// 			cpuLoad:	v
-// 		}
-		
-// 		usageCollection.insert(usage);
-// 	});
-// }
+// Converts input bytes number to megabytes
+function getMegaBytes(bytes)
+{
+    return Math.round(bytes/ONE_MILLION);
+}
 
-function updateUsageInfo(){
-	/*
-		Gets current CPU/memory etc. usage and update corresponding entry in DB.
-		Is called repeatedly.
-	*/
-	
-	var usageCollection = myDb.collection(dbServerUsageCollection);
-	
-	os.cpuUsage(function(v){
-		var query = {appName: "analyzing",
-			appId: applicationId}
-		var newValues = {
-			$set: {
-			memUsed:	(os.totalmem() - os.freemem()),
-			memTotal:	os.totalmem(),
-			cpuLoad:	v}
-		}
-		usageCollection.update(query, newValues, {upsert: true});
-		// usageCollection.update(query, newValues);
-	});
+// Gets the resident set size in MB
+function getResidentSetSize(setPrev)
+{
+    var memUsed = util.inspect(process.memoryUsage()).split(" ");
+    //console.log("RSS:", getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1)));
+    if (setPrev)
+        return prevResidentSetSize = getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1));
+    else
+        return getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1));
+}
+
+// Check for memory changes every second
+var oldMem = getResidentSetSize(true),
+    newMem,
+    memCount = ZERO;
+
+
+function getMemory() {
+    //console.log("Mem usage " + oldMem.toString() + " ~ " + memCount++);
+
+    // Get previous and current memory values
+    oldMem = prevResidentSetSize;
+    newMem = getResidentSetSize(true);
+
+    // If memory has changed, emit a memoryChange event
+    if (oldMem !== newMem)
+    {
+        if (newMem > memLimit)
+            newMem = memLimit;
+
+        //sio.emit("memoryChange", { newMem: newMem });
+    }
+    if (newMem > 200 ){
+        global.gc();
+    }
+    console.log("Emitted CPU/RAM: " + process.pid + ":"+ instance +  " ~ " + newMem.toString() + "MB");
 }
 
 // Gets the CPU usage and emits an event with the utilization percentage
-function getUsage()
-{
+function getUsage() {
     var pid = process.pid;
-    var options = { keepHistory: true };
+    var options = {keepHistory: true};
 
     // Looks up CPU usage data and compares it against last retrieved value
-    usage.lookup(pid, options, function(err, result) {
+    usage.lookup(pid, options, function (err, result) {
         var newAvgCpuUsage = Math.round(result.cpu);
         // If average CPU usage has changed, emit a cpuChange event
         if (newAvgCpuUsage > ONE_HUNDRED)
@@ -245,23 +268,23 @@ function getUsage()
             newAvgCpuUsage = ONE;
 
         // sio.emit("cpuUsage", { newCpuAvg: newAvgCpuUsage });
-        console.log("emitted CPU usage event for pid :" + pid + " ~ ", newAvgCpuUsage.toString() + "%");
+        console.log("Emitted CPU/RAM:" + pid + ":" + instance +  " ~ ", newAvgCpuUsage.toString() + "%");
     });
 }
 
 function runUsageMonitoring() {
- setInterval(function () {    //  call a 30s setTimeout when the loop is called
-		updateUsageInfo();
-		getUsage();
-		console.log("Completed Usage Monetoring.");
-	}, 1000)
+    setInterval(function () {    //  call a 30s setTimeout when the loop is called
+        getUsage();
+        getMemory();
+        console.log("Completed Usage Monitoring.");
+    }, 1000)
 }
 
 function runGC() {
- setInterval(function () {    //  call a 30s setTimeout when the loop is called
-		global.gc();
-		console.log("Completed GC.");
-	}, 30000)
+    setInterval(function () {    //  call a 30s setTimeout when the loop is called
+
+        console.log("Completed GC.");
+    }, 30000)
 }
 
 app.listen(port);

@@ -6,7 +6,14 @@
     "express": "3.x",
     "mongodb": "*",
     "mqlight": "^1.0.2015031902",
-    "sentiment": "0.2.1"
+    "sentiment": "0.2.1",
+    "body-parser": "~1.0.0",
+    "method-override": "~1.0.0",
+    "dustjs-linkedin": "*",
+    "consolidate": "*",
+    "socket.io": "~1.3.4",
+    "cron": "*",
+    "usage": "*"
   },
   "devDependencies": {
     "grunt": "~0.4.2",
