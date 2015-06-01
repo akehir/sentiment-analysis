@@ -1,4 +1,3 @@
-
 var express = require("express");
 var mongoClient = require("mongodb").MongoClient;
 var mqlight = require('mqlight');
@@ -15,14 +14,12 @@ var prevTotalOsMem, prevFreeOsMem, prevOsMemUsed,
 
 // Determines if the app is running locally and sets port, memory total, & instance index
 var port, memLimit, instance, application;
-if (process.env.VCAP_APPLICATION === undefined)
-{
-    port = 3000;
+if (process.env.VCAP_APPLICATION === undefined) {
+    port = 3003;
     memLimit = 128;
     instance = -1;
 }
-else
-{
+else {
     port = process.env.VCAP_APP_PORT;
     application = process.env.VCAP_APPLICATION;
     memLimit = JSON.parse(process.env.VCAP_APPLICATION)['limits']['mem'];
@@ -134,7 +131,6 @@ function startApp() {
      */
 
     runGC();
-    runUsageMonitoring();
 
     mqlightClient = mqlight.createClient(opts, function (err) {
         if (err) {
@@ -200,7 +196,7 @@ function processMessage(data, delivery) {
                 "analyzed": analyzed,
                 "frontend": "Node.js: " + mqlightClient.id
             };
-            //console.log("Sending message: " + JSON.stringify(msgData));
+            console.log("Sending message: " + JSON.stringify(msgData));
             mqlightClient.send(mqlightAnalyzedTopic, msgData, {
                 ttl: 60 * 60 * 1000 /* 1 hour */
             });
@@ -209,80 +205,8 @@ function processMessage(data, delivery) {
     }
 }
 
-// Converts input bytes number to megabytes
-function getMegaBytes(bytes)
-{
-    return Math.round(bytes/ONE_MILLION);
-}
-
-// Gets the resident set size in MB
-function getResidentSetSize(setPrev)
-{
-    var memUsed = util.inspect(process.memoryUsage()).split(" ");
-    //console.log("RSS:", getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1)));
-    if (setPrev)
-        return prevResidentSetSize = getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1));
-    else
-        return getMegaBytes(memUsed[2].substr(0,memUsed[2].length-1));
-}
-
-// Check for memory changes every second
-var oldMem = getResidentSetSize(true),
-    newMem,
-    memCount = ZERO;
-
-
-function getMemory() {
-    //console.log("Mem usage " + oldMem.toString() + " ~ " + memCount++);
-
-    // Get previous and current memory values
-    oldMem = prevResidentSetSize;
-    newMem = getResidentSetSize(true);
-
-    // If memory has changed, emit a memoryChange event
-    if (oldMem !== newMem)
-    {
-        if (newMem > memLimit)
-            newMem = memLimit;
-
-        //sio.emit("memoryChange", { newMem: newMem });
-    }
-    if (newMem > 200 ){
-        global.gc();
-    }
-    console.log("Emitted CPU/RAM: " + process.pid + ":"+ instance +  " ~ " + newMem.toString() + "MB");
-}
-
-// Gets the CPU usage and emits an event with the utilization percentage
-function getUsage() {
-    var pid = process.pid;
-    var options = {keepHistory: true};
-
-    // Looks up CPU usage data and compares it against last retrieved value
-    usage.lookup(pid, options, function (err, result) {
-        var newAvgCpuUsage = Math.round(result.cpu);
-        // If average CPU usage has changed, emit a cpuChange event
-        if (newAvgCpuUsage > ONE_HUNDRED)
-            newAvgCpuUsage = ONE_HUNDRED;
-        else if (newAvgCpuUsage < ONE)
-            newAvgCpuUsage = ONE;
-
-        // sio.emit("cpuUsage", { newCpuAvg: newAvgCpuUsage });
-        console.log("Emitted CPU/RAM:" + pid + ":" + instance +  " ~ ", newAvgCpuUsage.toString() + "%");
-    });
-}
-
-function runUsageMonitoring() {
-    setInterval(function () {    //  call a 30s setTimeout when the loop is called
-        getUsage();
-        getMemory();
-        console.log("Completed Usage Monitoring.");
-    }, 1000)
-}
-
 function runGC() {
     setInterval(function () {    //  call a 30s setTimeout when the loop is called
-
         console.log("Completed GC.");
     }, 30000)
 }
